@@ -147,6 +147,16 @@ function ConsultingRoom({ floorY }: { floorY: number }) {
   const floorColor = '#c5ccd2';
   const deskWood = '#a87b54';
   const deskWoodDark = '#7d5a3b';
+  const doorColor = '#6f7b84';
+  const doorFrameColor = '#56606a';
+  const doorHandleColor = '#cfd6db';
+
+  // Puerta en la pared trasera (z = -3.4), a un costado de la paciente.
+  const backWallZ = -3.4;
+  const doorWidth = 1.1;
+  const doorHeight = 2.3;
+  const doorX = -2.2;
+  const doorCenterY = floorY + doorHeight / 2;
 
   return (
     <group>
@@ -157,10 +167,29 @@ function ConsultingRoom({ floorY }: { floorY: number }) {
       </mesh>
 
       {/* Pared trasera */}
-      <mesh position={[0, floorY + 2.4, -3.4]}>
+      <mesh position={[0, floorY + 2.4, backWallZ]}>
         <planeGeometry args={[16, 6]} />
         <meshStandardMaterial color={wallColor} roughness={1} />
       </mesh>
+
+      {/* Puerta en la pared trasera */}
+      <group position={[doorX, 0, backWallZ + 0.01]}>
+        {/* Marco */}
+        <mesh position={[0, doorCenterY, 0]}>
+          <boxGeometry args={[doorWidth + 0.16, doorHeight + 0.12, 0.06]} />
+          <meshStandardMaterial color={doorFrameColor} roughness={0.85} />
+        </mesh>
+        {/* Hoja de la puerta */}
+        <mesh position={[0, doorCenterY, 0.04]}>
+          <boxGeometry args={[doorWidth, doorHeight, 0.05]} />
+          <meshStandardMaterial color={doorColor} roughness={0.7} />
+        </mesh>
+        {/* Manija */}
+        <mesh position={[doorWidth / 2 - 0.14, doorCenterY, 0.09]}>
+          <boxGeometry args={[0.1, 0.04, 0.04]} />
+          <meshStandardMaterial color={doorHandleColor} roughness={0.3} metalness={0.6} />
+        </mesh>
+      </group>
 
       {/* Pared izquierda */}
       <mesh rotation={[0, Math.PI / 2, 0]} position={[-4.2, floorY + 2.4, -1]}>
