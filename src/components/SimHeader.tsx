@@ -5,9 +5,10 @@ import { ViewMode } from '../models/simulation';
 interface SimHeaderProps {
   activeView: ViewMode;
   onViewChange: (view: ViewMode) => void;
+  onExit?: () => void;
 }
 
-export function SimHeader({ activeView, onViewChange }: SimHeaderProps) {
+export function SimHeader({ activeView, onViewChange, onExit }: SimHeaderProps) {
   const tabs: { id: ViewMode; label: string; icon: any }[] = [
     { id: 'paciente', label: 'Paciente', icon: User },
     { id: 'chat', label: 'Chat', icon: MessageSquare },
@@ -18,7 +19,11 @@ export function SimHeader({ activeView, onViewChange }: SimHeaderProps) {
     <header className="grid grid-cols-3 items-center px-8 py-5 bg-white border-b border-slate-100 relative z-50">
       {/* Izquierda: Salir + MedSim */}
       <div className="flex items-center gap-4">
-        <button className="p-2 text-slate-300 hover:text-red-500 transition-all hover:bg-red-50 rounded-lg">
+        <button
+          onClick={onExit}
+          title="Salir al inicio"
+          className="p-2 text-slate-300 hover:text-red-500 transition-all hover:bg-red-50 rounded-lg"
+        >
           <LogOut className="w-5 h-5 rotate-180 stroke-[1.5px]" />
         </button>
         <h1 className="text-xl font-black text-[#003d4c] tracking-tighter">
