@@ -8,20 +8,12 @@ import { Patient } from '../models/simulation';
 
 const MEDSIM_MODEL_PATH = '/models/medsim_demo.glb';
 const TALKING_ANIMATION_NAME = 'mixamo.com.001';
-const MODEL_SCALE = 1;
-const MODEL_POSITION: [number, number, number] = [0, 0, 0];
-const ORBIT_TARGET: [number, number, number] = [
-  0.09771890875058677,
-  -0.4765669964132093,
-  -0.1357422255145624,
-];
-const CAMERA_POSITION: [number, number, number] = [
-  -1.3780886310462146,
-  -0.31360680425939247,
-  1.2041966093775769,
-];
-const CAMERA_FOV = 50;
-const MODEL_ROTATION: [number, number, number] = [0, 0, 0];
+
+// Punto de enfoque (rostro / torso del paciente) en el espacio centrado.
+const LOOK_TARGET: [number, number, number] = [0.1, -0.48, -0.14];
+// Cámara en POV del médico, sentado detrás del escritorio frente al paciente.
+const CAMERA_POSITION: [number, number, number] = [0.1, -0.18, 1.75];
+const CAMERA_FOV = 48;
 
 interface PatientViewProps {
   patient: Patient;
@@ -61,29 +53,45 @@ class SceneErrorBoundary extends React.Component<{ children: React.ReactNode }, 
   }
 }
 
-function MedSimScene() {
+/**
+ * Carga el modelo del paciente y lo centra en el origen (igual que el encuadre
+ * original que enmarca correctamente a la persona). Informa la altura del piso
+ * para que la sala se construya en el mismo sistema de coordenadas.
+ */
+function Patient3D({ onFloor }: { onFloor: (y: number) => void }) {
   const { scene, animations } = useGLTF(MEDSIM_MODEL_PATH);
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
-  const centerOffset = useMemo(() => {
+
+  const placement = useMemo(() => {
     scene.updateMatrixWorld(true);
 
     const box = new THREE.Box3().setFromObject(scene);
     const center = box.getCenter(new THREE.Vector3());
 
+    // Solo conservamos a la paciente (Ch31_*), la silla donde se sienta y el
+    // cascarón del consultorio (paredes / piso / techo). Todo el resto del
+    // mobiliario y los objetos decorativos se ocultan.
+    const KEEP_PREFIXES = ['Ch31_', 'Student_Chair', 'Medical_Office'];
     scene.traverse((object) => {
-      const mesh = object as THREE.Mesh | THREE.SkinnedMesh;
-
-      if (!mesh.isMesh) {
-        return;
-      }
-
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh) return;
       mesh.castShadow = false;
       mesh.receiveShadow = false;
       mesh.frustumCulled = true;
+      const keep = KEEP_PREFIXES.some((prefix) => mesh.name.startsWith(prefix));
+      mesh.visible = keep;
     });
 
-    return [-center.x, -center.y, -center.z] as [number, number, number];
+    // Centrado en todos los ejes (encuadre conocido que funciona).
+    const offset: [number, number, number] = [-center.x, -center.y, -center.z];
+    // Piso = base del modelo en el espacio centrado.
+    const floorY = box.min.y - center.y;
+    return { offset, floorY };
   }, [scene]);
+
+  useEffect(() => {
+    onFloor(placement.floorY);
+  }, [placement.floorY, onFloor]);
 
   useEffect(() => {
     const mixer = new THREE.AnimationMixer(scene);
@@ -115,17 +123,107 @@ function MedSimScene() {
   });
 
   return (
-    <group position={MODEL_POSITION} scale={MODEL_SCALE} rotation={MODEL_ROTATION}>
-      <group position={centerOffset}>
-        <primitive object={scene} />
+    <group position={placement.offset}>
+      <primitive object={scene} />
+    </group>
+  );
+}
+
+/**
+ * Consultorio médico: piso, paredes y un escritorio en primer plano.
+ * Construido en el mismo espacio centrado que el paciente, usando `floorY`.
+ */
+function ConsultingRoom({ floorY }: { floorY: number }) {
+  // Escritorio en primer plano (entre la cámara y el paciente).
+  const deskTopY = floorY + 0.9;
+  const deskTopThickness = 0.07;
+  const deskWidth = 3.2;
+  const deskDepth = 0.85;
+  const deskZ = 0.55;
+
+  const wallColor = '#e9eef2';
+  const wallColorAccent = '#dde6ea';
+  const floorColor = '#c5ccd2';
+  const deskWood = '#a87b54';
+  const deskWoodDark = '#7d5a3b';
+
+  return (
+    <group>
+      {/* Piso */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, floorY, -1]}>
+        <planeGeometry args={[16, 16]} />
+        <meshStandardMaterial color={floorColor} roughness={0.95} />
+      </mesh>
+
+      {/* Pared trasera */}
+      <mesh position={[0, floorY + 2.4, -3.4]}>
+        <planeGeometry args={[16, 6]} />
+        <meshStandardMaterial color={wallColor} roughness={1} />
+      </mesh>
+
+      {/* Pared izquierda */}
+      <mesh rotation={[0, Math.PI / 2, 0]} position={[-4.2, floorY + 2.4, -1]}>
+        <planeGeometry args={[12, 6]} />
+        <meshStandardMaterial color={wallColorAccent} roughness={1} />
+      </mesh>
+
+      {/* Pared derecha */}
+      <mesh rotation={[0, -Math.PI / 2, 0]} position={[4.2, floorY + 2.4, -1]}>
+        <planeGeometry args={[12, 6]} />
+        <meshStandardMaterial color={wallColorAccent} roughness={1} />
+      </mesh>
+
+      {/* Escritorio en primer plano (POV detrás del escritorio) */}
+      <group position={[0, 0, deskZ]}>
+        {/* Tablero */}
+        <mesh position={[0, deskTopY, 0]}>
+          <boxGeometry args={[deskWidth, deskTopThickness, deskDepth]} />
+          <meshStandardMaterial color={deskWood} roughness={0.55} metalness={0.05} />
+        </mesh>
+        {/* Panel frontal (mirando a la cámara) */}
+        <mesh position={[0, (floorY + deskTopY) / 2, deskDepth * 0.42]}>
+          <boxGeometry args={[deskWidth, deskTopY - floorY, deskDepth * 0.08]} />
+          <meshStandardMaterial color={deskWoodDark} roughness={0.7} />
+        </mesh>
       </group>
     </group>
   );
 }
 
+function Scene({ isCompact }: { isCompact?: boolean }) {
+  const [floorY, setFloorY] = React.useState(-1.4);
+
+  return (
+    <>
+      <PerspectiveCamera makeDefault position={CAMERA_POSITION} fov={isCompact ? CAMERA_FOV + 6 : CAMERA_FOV} />
+
+      <color attach="background" args={['#e3e9ed']} />
+
+      <ambientLight intensity={1.3} />
+      <hemisphereLight args={['#ffffff', '#b9c2c9', 0.9]} />
+      <directionalLight position={[4, 6, 5]} intensity={1.8} />
+      <directionalLight position={[-4, 4, 2]} intensity={0.5} />
+
+      <Patient3D onFloor={setFloorY} />
+      <ConsultingRoom floorY={floorY} />
+
+      <OrbitControls
+        target={LOOK_TARGET}
+        enableRotate
+        enableZoom={false}
+        enablePan={false}
+        minPolarAngle={Math.PI / 3}
+        maxPolarAngle={Math.PI / 2}
+        minAzimuthAngle={-Math.PI / 6}
+        maxAzimuthAngle={Math.PI / 6}
+      />
+    </>
+  );
+}
+
 export const PatientView: React.FC<PatientViewProps> = ({ patient, isCompact }) => {
   return (
-    <div className="relative w-full h-full bg-[#f1f5f9] overflow-hidden">
+    <div className="relative w-full h-full bg-[#e3e9ed] overflow-hidden">
       <SceneErrorBoundary>
         <Suspense fallback={
           <div className="flex h-full w-full items-center justify-center bg-[#f8fafc]">
@@ -136,33 +234,16 @@ export const PatientView: React.FC<PatientViewProps> = ({ patient, isCompact }) 
           </div>
         }>
           <Canvas
-            shadows={false}
-            dpr={[1, 1]}
+            dpr={[1, 1.5]}
             frameloop="always"
             gl={{
-              antialias: false,
+              antialias: true,
               alpha: false,
               powerPreference: 'high-performance',
               preserveDrawingBuffer: false,
             }}
           >
-            <PerspectiveCamera makeDefault position={CAMERA_POSITION} fov={isCompact ? CAMERA_FOV + 8 : CAMERA_FOV} />
-
-            <ambientLight intensity={1.5} />
-            <directionalLight position={[4, 8, 8]} intensity={2} />
-
-            <MedSimScene />
-
-            <OrbitControls
-              target={ORBIT_TARGET}
-              enableRotate
-              enableZoom={false}
-              enablePan={false}
-              minPolarAngle={Math.PI / 4}
-              maxPolarAngle={Math.PI / 1.8}
-              minDistance={2}
-              maxDistance={12}
-            />
+            <Scene isCompact={isCompact} />
           </Canvas>
           <Loader />
         </Suspense>
