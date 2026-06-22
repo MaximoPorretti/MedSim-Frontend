@@ -10,10 +10,10 @@ const MEDSIM_MODEL_PATH = '/models/medsim_demo.glb';
 const TALKING_ANIMATION_NAME = 'mixamo.com.001';
 
 // Punto de enfoque (rostro / torso del paciente) en el espacio centrado.
-const LOOK_TARGET: [number, number, number] = [0.1, -0.48, -0.14];
+const LOOK_TARGET: [number, number, number] = [0.12, -0.28, -0.14];
 // Cámara en POV del médico, sentado detrás del escritorio frente al paciente.
-const CAMERA_POSITION: [number, number, number] = [0.1, -0.18, 1.75];
-const CAMERA_FOV = 48;
+const CAMERA_POSITION: [number, number, number] = [0.12, 0.05, 1.45];
+const CAMERA_FOV = 46;
 
 interface PatientViewProps {
   patient: Patient;
@@ -68,10 +68,11 @@ function Patient3D({ onFloor }: { onFloor: (y: number) => void }) {
     const box = new THREE.Box3().setFromObject(scene);
     const center = box.getCenter(new THREE.Vector3());
 
-    // Solo conservamos a la paciente (Ch31_*), la silla donde se sienta y el
-    // cascarón del consultorio (paredes / piso / techo). Todo el resto del
-    // mobiliario y los objetos decorativos se ocultan.
-    const KEEP_PREFIXES = ['Ch31_', 'Student_Chair', 'Medical_Office'];
+    // Solo conservamos a la paciente (Ch31_*) y la silla donde se sienta.
+    // Ocultamos el cascarón original del consultorio y todo el mobiliario:
+    // la sala (paredes, piso, escritorio) la construimos nosotros para tener
+    // un entorno limpio y controlado.
+    const KEEP_PREFIXES = ['Ch31_', 'Student_Chair'];
     scene.traverse((object) => {
       const mesh = object as THREE.Mesh;
       if (!mesh.isMesh) return;
@@ -135,11 +136,11 @@ function Patient3D({ onFloor }: { onFloor: (y: number) => void }) {
  */
 function ConsultingRoom({ floorY }: { floorY: number }) {
   // Escritorio en primer plano (entre la cámara y el paciente).
-  const deskTopY = floorY + 0.9;
-  const deskTopThickness = 0.07;
-  const deskWidth = 3.2;
-  const deskDepth = 0.85;
-  const deskZ = 0.55;
+  const deskTopY = floorY + 0.78;
+  const deskTopThickness = 0.06;
+  const deskWidth = 3.4;
+  const deskDepth = 0.8;
+  const deskZ = 0.75;
 
   const wallColor = '#e9eef2';
   const wallColorAccent = '#dde6ea';
